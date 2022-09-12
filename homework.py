@@ -33,7 +33,7 @@ HOMEWORK_STATUSES = {
 def send_message(bot, message):
     """Отправка сообщения."""
     try:
-        bot.sent_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
     except Exception as error:
         logging.error(f'Сообщение не отправлено {error}')
 
@@ -60,16 +60,17 @@ def check_response(response):
     """Проверка корректного ответа API."""
     if not isinstance(response['homeworks'], list):
         raise TypeError('Эндпоинт не является словарём.')
-    if response['current_date']:
-        return response.get('homeworks')
-    return []
+    if response.get('homeworks') is None:
+        raise TypeError('Эндпоинт не является словарём.')
+    homework = response.get('homeworks')
+    return homework
 
 
 def parse_status(homework):
     """Статус домашней работы."""
     homework_name = homework['homework_name']
     homework_status = homework['status']
-    if not homework_name:
+    if homework_status is None:
         logging.error('Нету такого имени')
         raise KeyError('Домашняя работа не найдена')
     verdict = HOMEWORK_STATUSES[homework_status]
@@ -78,12 +79,11 @@ def parse_status(homework):
 
 def check_tokens():
     """Проверка токенов."""
-    tokens = [
+    return all([
         PRACTICUM_TOKEN,
         TELEGRAM_CHAT_ID,
-        TELEGRAM_TOKEN,
-    ]
-    return all(tokens)
+        TELEGRAM_TOKEN]
+    )
 
 
 def main():
@@ -91,6 +91,7 @@ def main():
     if not check_tokens:
         message_log = ('Ошибка, отсутствует токен')
         logging.critical(message_log)
+        raise KeyError('Ошибка, отсутствует токен')
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp = int(time.time())
@@ -101,9 +102,8 @@ def main():
             homework = check_response(homework_status_json)
             message = parse_status(homework)
             if message:
-                homework = message[0]
                 send_message(bot, message)
-            current_timestamp = homework_status_json.get(current_timestamp)
+            current_timestamp = 0
 
         except KeyboardInterrupt:
             finish = input(
@@ -115,8 +115,12 @@ def main():
             elif finish in ('N', 'n'):
                 print('Продолжаем работать!')
 
-        except Exception as e:
-            print(f'Бот упал с ошибкой: {e}')
+        except Exception as error:
+            message = f'Сбой в коде зовите админа!: {error}'
+            logging.error(message)
+            bot.send_message(TELEGRAM_CHAT_ID, message)
+
+        finally:
             time.sleep(RETRY_TIME)
 
 
