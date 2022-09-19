@@ -51,30 +51,37 @@ def get_api_answer(current_timestamp):
     except Exception as error:
         logging.error(f'Ошибка запроса к API-сервиса: {error}')
     if homework_statuses.status_code != HTTPStatus.OK:
-        logging.error(f'Ошибка от API-сервиса {homework_statuses.status_code}')
         raise Exception('Ошибка ответа')
     return homework_statuses.json()
 
 
 def check_response(response):
     """Проверка корректного ответа API."""
-    if not isinstance(response['homeworks'], list):
-        raise TypeError('Эндпоинт не является словарём.')
-    if response.get('homeworks') is None:
-        raise TypeError('Эндпоинт не является словарём.')
-    homework = response.get('homeworks')
-    return homework
+    if isinstance(response, dict):
+        response['current_date']
+        homeworks = response['homeworks']
+        if isinstance(homeworks, list):
+            return homeworks
+        else:
+            raise SystemError('Тип ключа homeworks не list')
+    else:
+        raise TypeError('Ответ от домашки не словарь')
 
 
 def parse_status(homework):
     """Статус домашней работы."""
-    homework_name = homework['homework_name']
-    homework_status = homework['status']
-    if homework_status is None:
-        logging.error('Нету такого имени')
-        raise KeyError('Домашняя работа не найдена')
-    verdict = HOMEWORK_STATUSES[homework_status]
-    return f'Изменился статус проверки работы "{homework_name}". {verdict}'
+    homework_name = homework.get('homework_name')
+    homework_status = homework.get('status')
+
+    if homework_name is not None and homework_status is not None:
+        if homework_status in HOMEWORK_STATUSES:
+            verdict = HOMEWORK_STATUSES.get(homework_status)
+            return ('Изменился статус проверки '
+                    + f'работы "{homework_name}". {verdict}')
+        else:
+            raise SystemError('неизвестный статус')
+    else:
+        raise KeyError('нет нужных ключей в словаре')
 
 
 def check_tokens():
@@ -103,7 +110,7 @@ def main():
             message = parse_status(homework)
             if message:
                 send_message(bot, message)
-            current_timestamp = 0
+            current_timestamp = homework_status_json['current_date']
 
         except KeyboardInterrupt:
             finish = input(
@@ -118,7 +125,7 @@ def main():
         except Exception as error:
             message = f'Сбой в коде зовите админа!: {error}'
             logging.error(message)
-            bot.send_message(TELEGRAM_CHAT_ID, message)
+            send_message(TELEGRAM_CHAT_ID, bot, message)
 
         finally:
             time.sleep(RETRY_TIME)
